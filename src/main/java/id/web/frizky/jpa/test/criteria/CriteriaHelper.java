@@ -4,7 +4,6 @@ import org.hibernate.*;
 import org.hibernate.criterion.Criterion;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Projection;
-import org.hibernate.criterion.SimpleExpression;
 import org.hibernate.sql.JoinType;
 import org.hibernate.transform.ResultTransformer;
 
@@ -18,7 +17,7 @@ import java.util.Map;
  */
 public class CriteriaHelper implements Criteria {
     ArrayList<Criterion> criterions = new ArrayList<Criterion>();
-    Map<String, String> aliasMap = new HashMap<String, String>();
+    List<Alias> aliasList = new ArrayList<Alias>();
     private Criteria criteria;
 
     public CriteriaHelper(Criteria criteria) {
@@ -61,12 +60,12 @@ public class CriteriaHelper implements Criteria {
     }
 
     public Criteria createAlias(String s, String s1) throws HibernateException {
-//        criteria.createAlias(s, s1);
-        aliasMap.put(s, s1);
+        aliasList.add(new Alias1Impl(s, s1));
         return this;
     }
 
     public Criteria createAlias(String s, String s1, JoinType joinType) throws HibernateException {
+        aliasList.add(new Alias2Impl(s, s1, joinType));
         criteria.createAlias(s, s1, joinType);
         return this;
     }
@@ -78,6 +77,7 @@ public class CriteriaHelper implements Criteria {
     }
 
     public Criteria createAlias(String s, String s1, JoinType joinType, Criterion criterion) throws HibernateException {
+        aliasList.add(new Alias3Impl(s, s1, joinType, criterion));
         criteria.createAlias(s, s1, joinType, criterion);
         return this;
     }
@@ -217,30 +217,28 @@ public class CriteriaHelper implements Criteria {
     }
 
     public void populateCriteria() {
-        Map<String, String> addedAlias = new HashMap<String, String>();
-        Map<String, Map.Entry<String, String>> stringEntryMap = populateReverseMap();
-        for (int i = 0; i < criterions.size(); i++) {
-            Criterion criterion = criterions.get(i);
-            if (criterion instanceof SimpleExpression) {
-                String propertyName = ((SimpleExpression) criterion).getPropertyName();
-                Map.Entry<String, String> stringStringEntry = stringEntryMap.get(propertyName);
-                if (stringStringEntry != null) {
-                    addedAlias.put(stringStringEntry.getKey(), stringStringEntry.getValue());
-                } else {
-                    throw new RuntimeException("Missing Restriction property for " + propertyName);
-                }
+        List<Alias> addedAlias = new ArrayList<Alias>();
+        Map<String, Alias> map = new HashMap<String, Alias>();
+
+        for (int i = 0; i < aliasList.size(); i++) {
+            Alias alias = aliasList.get(i);
+            map.put(alias.getAssociationPath(), alias);
+
+            // rule 1
+            // jika joinType inner join selalu add alias
+            if (alias.isRequired()) {
+                addedAlias.add(alias);
             }
         }
-        for (Map.Entry<String, String> stringStringEntry : addedAlias.entrySet()) {
-            criteria.createAlias(stringStringEntry.getKey(), stringStringEntry.getValue());
+
+        for (Criterion criterion : criterions) {
+
+        }
+
+
+        for (Alias alias : addedAlias) {
+            alias.addThisAlias(criteria);
         }
     }
 
-    protected Map<String, Map.Entry<String, String>> populateReverseMap() {
-        HashMap<String, Map.Entry<String, String>> stringEntryHashMap = new HashMap<String, Map.Entry<String, String>>();
-        for (Map.Entry<String, String> stringStringEntry : aliasMap.entrySet()) {
-            stringEntryHashMap.put(stringStringEntry.getValue(), stringStringEntry);
-        }
-        return stringEntryHashMap;
-    }
 }
